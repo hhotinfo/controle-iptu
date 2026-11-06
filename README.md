@@ -6,3 +6,5 @@ Página de controle de IPTU, ITBI e dívida ativa dos imóveis. Publicada pelo G
 - `config.js` — endereço e chave pública do projeto Supabase
 
 Os dados dos imóveis **não** ficam neste repositório; ficam no banco do Supabase, protegidos por login.
+
+Endereço: https://hhotinfo.github.io/controle-iptu/
