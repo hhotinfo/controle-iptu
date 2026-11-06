@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Controle de IPTU</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: cabeçalho de livro-caixa → faixa de totais → filtros → tabela de imóveis; edição em painel lateral */
+:root{
+  --bg:#f5f6f3; --surface:#ffffff; --ink:#1c2420; --muted:#5d6a63; --line:#dde2dc;
+  --accent:#1f5f4a; --accent-soft:#e3efe9;
+  --ok:#2d7a3e; --ok-soft:#e2f2e5; --warn:#a86a00; --warn-soft:#fbefd7;
+  --bad:#b3261e; --bad-soft:#fbe4e2; --mute-soft:#eceeeb;
+  --f-display:"Archivo",system-ui,sans-serif; --f-body:"Archivo",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121614; --surface:#1a201d; --ink:#e6ebe7; --muted:#9aa69f; --line:#2c3531;
+  --accent:#6cc4a1; --accent-soft:#1f3a30; --ok:#7fd18f; --ok-soft:#1e3324; --warn:#e5b45a; --warn-soft:#3a2e15;
+  --bad:#f08a80; --bad-soft:#3d1f1c; --mute-soft:#252b28; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121614; --surface:#1a201d; --ink:#e6ebe7; --muted:#9aa69f; --line:#2c3531;
+  --accent:#6cc4a1; --accent-soft:#1f3a30; --ok:#7fd18f; --ok-soft:#1e3324; --warn:#e5b45a; --warn-soft:#3a2e15;
+  --bad:#f08a80; --bad-soft:#3d1f1c; --mute-soft:#252b28; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+[hidden]{display:none!important}
+.login{max-width:380px;margin:12vh auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px;display:flex;flex-direction:column;gap:12px}
+.login h1{font-size:22px}
+.login input{padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-size:15px}
+.login .err{color:var(--bad);font-size:13px;min-height:1em;margin:0}
+.userbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.userbar .note{margin:0}
+
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+.wrap{max-width:1280px;margin:0 auto;padding-block:24px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px}
+h1{font-family:var(--f-display);font-size:26px;font-weight:700;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);margin:2px 0 0}
+.due{font-family:var(--f-mono);font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.due b{font-weight:500}
+.due.late{border-color:var(--bad);color:var(--bad)}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.kpi{background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.kpi span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.kpi strong{font-family:var(--f-mono);font-weight:500;font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi.saldo strong{color:var(--bad)} .kpi.pago strong{color:var(--ok)}
+.bar{height:6px;border-radius:3px;background:var(--mute-soft);overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--ok)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+input,select,textarea,button{font:inherit;color:inherit}
+.tools input,.tools select{padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);min-width:0}
+.tools input{flex:1 1 220px}
+.btn{padding:8px 14px;border-radius:6px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,tr:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:980px}
+th,td{padding:9px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;background:var(--surface);position:sticky;top:0;cursor:pointer;user-select:none}
+th.num,td.num{text-align:right}
+td.num,td.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:13px}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--accent-soft)}
+tr.sold td{color:var(--muted)}
+tr.sold td.nome{text-decoration:line-through}
+td.nome{font-weight:500;white-space:normal;min-width:220px}
+td.nome small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+tfoot td{font-weight:600;background:var(--mute-soft);border-bottom:0}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+.s-Pendente{background:var(--warn-soft);color:var(--warn)}
+.s-Atrasado{background:var(--bad-soft);color:var(--bad)}
+.s-Pago{background:var(--ok-soft);color:var(--ok)}
+.s-Parcelado{background:var(--accent-soft);color:var(--accent)}
+.s-Contestado{background:var(--bad-soft);color:var(--bad)}
+.s-Vendido,.s-Isento{background:var(--mute-soft);color:var(--muted)}
+.zero{color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px}
+.panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 12px;font-weight:600}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border-bottom:0}
+.row .v{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+.row .bar{grid-column:1/-1}
+.row small{color:var(--muted)}
+.empty{padding:40px 16px;text-align:center;color:var(--muted)}
+.note{font-size:12px;color:var(--muted)}
+/* painel de edição */
+.scrim{position:fixed;inset:0;background:rgba(10,15,12,.4);z-index:20}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);background:var(--surface);z-index:21;border-left:1px solid var(--line);display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px)}
+.drawer header{padding:16px 20px;border-bottom:1px solid var(--line);align-items:center}
+.drawer h3{margin:0;font-size:17px}
+.form{padding:16px 20px;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);min-width:0}
+.form .full{grid-column:1/-1}
+.form input,.form select,.form textarea{padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font-size:14px;min-width:0;width:100%}
+.form input.money{font-family:var(--f-mono)}
+.form fieldset{grid-column:1/-1;border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0}
+.form legend{font-size:12px;font-weight:600;padding:0 4px;color:var(--ink)}
+.calc{grid-column:1/-1;font-family:var(--f-mono);font-size:13px;display:flex;justify-content:space-between;padding:8px 10px;background:var(--mute-soft);border-radius:6px}
+.actions{padding:12px 20px;border-top:1px solid var(--line);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.actions .left{margin-right:auto}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:6px;z-index:30;font-size:13px}
+@media (max-width:720px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi strong{font-size:17px}h1{font-size:22px}}
+@media (prefers-reduced-motion:no-preference){.drawer{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+</head><body>
+
+
+<div id="loginBox" class="wrap" hidden><form class="login" id="loginForm">
+  <h1>Controle de IPTU</h1><p class="sub">Entre com seu e-mail e senha.</p>
+  <input id="lEmail" type="email" placeholder="E-mail" autocomplete="username" required>
+  <input id="lPass" type="password" placeholder="Senha" autocomplete="current-password" required>
+  <button class="btn primary" id="lBtn">Entrar</button><p class="err" id="lErr"></p>
+</form></div>
+<div id="cfgBox" class="wrap" hidden><div class="login"><h1>Configuração pendente</h1><p class="sub">Preencha SUPABASE_URL e SUPABASE_KEY no arquivo config.js.</p></div></div>
+<div class="wrap" id="app" hidden>
+  <header>
+    <div>
+      <h1>Controle de IPTU</h1>
+      <p class="sub">Imóveis de José Lourenço, LO, Jlon e Rota de Porto — exercício 2026</p>
+    </div>
+    <div class="userbar"><div class="due" id="due">Vencimento IPTU 2026: <b>02/03/2026</b></div><span class="note" id="who"></span><button class="btn" id="logout">Sair</button></div>
+  </header>
+
+  <section class="kpis" aria-label="Totais">
+    <div class="kpi"><span>Total a pagar</span><strong id="kTotal">—</strong></div>
+    <div class="kpi pago"><span>Pago</span><strong id="kPago">—</strong><div class="bar"><i id="kBar" style="width:0"></i></div></div>
+    <div class="kpi saldo"><span>Saldo em aberto</span><strong id="kSaldo">—</strong></div>
+    <div class="kpi"><span>Imóveis</span><strong id="kQtd">—</strong></div>
+  </section>
+
+  <div class="tools">
+    <input id="q" type="search" placeholder="Buscar imóvel, sequencial ou observação">
+    <select id="fMun" aria-label="Município"><option value="">Todos os municípios</option></select>
+    <select id="fEmp" aria-label="Empresa"><option value="">Todas as empresas</option></select>
+    <select id="fSt" aria-label="Status"><option value="">Todos os status</option></select>
+    <button class="btn primary" id="add">+ Novo imóvel</button>
+  </div>
+
+  <div class="tablebox">
+    <table>
+      <thead><tr>
+        <th data-k="nome">Imóvel</th><th data-k="mun">Município</th><th data-k="seq">Sequencial</th>
+        <th class="num" data-k="iptu">IPTU 2026</th><th class="num" data-k="itbi">ITBI 2026</th>
+        <th class="num" data-k="d2025">Dívida 2025</th><th class="num" data-k="d2024">Dívida 2024</th>
+        <th class="num" data-k="total">Total</th><th data-k="st">Status</th>
+        <th class="num" data-k="valorPag">Pago</th><th class="num" data-k="saldo">Saldo</th>
+      </tr></thead>
+      <tbody id="tb"></tbody>
+      <tfoot id="tf"></tfoot>
+    </table>
+    <div class="empty" id="empty">Carregando imóveis…</div>
+  </div>
+
+  <div class="grid2">
+    <section class="panel"><h2>Por município</h2><div id="byMun"></div></section>
+    <section class="panel"><h2>Por empresa</h2><div id="byEmp"></div></section>
+  </div>
+  <p class="note">Dívidas 2024/2025 = dívida ativa à vista. Imóveis vendidos ou isentos não entram no saldo. Um imóvel pendente com valor passa a "Atrasado" depois do vencimento.</p>
+</div>
+
+<div id="drawerRoot" hidden>
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle">
+    <header><h3 id="dTitle">Imóvel</h3><button class="btn" id="dClose">Fechar</button></header>
+    <form class="form" id="frm">
+      <label class="full">Imóvel<input id="i_nome" required></label>
+      <label>Empresa<input id="i_emp" list="dlEmp"></label>
+      <label>Município<input id="i_mun" list="dlMun"></label>
+      <label>Sequencial prefeitura<input id="i_seq" class="money"></label>
+      <label>Status<select id="i_st"></select></label>
+      <label>IPTU 2026 (R$)<input id="i_iptu" class="money" inputmode="decimal"></label>
+      <label>ITBI 2026 (R$)<input id="i_itbi" class="money" inputmode="decimal"></label>
+      <label>Dívida 2025 (R$)<input id="i_d2025" class="money" inputmode="decimal"></label>
+      <label>Dívida 2024 (R$)<input id="i_d2024" class="money" inputmode="decimal"></label>
+      <fieldset><legend>Pagamento</legend>
+        <label>Data<input id="i_dataPag" type="date"></label>
+        <label>Valor pago (R$)<input id="i_valorPag" class="money" inputmode="decimal"></label>
+        <button type="button" class="btn" id="payAll" style="grid-column:1/-1">Marcar como pago (valor total)</button>
+      </fieldset>
+      <div class="calc"><span>Total</span><span id="cTot">—</span></div>
+      <div class="calc"><span>Saldo</span><span id="cSal">—</span></div>
+      <label class="full">Observações<textarea id="i_obs" rows="3"></textarea></label>
+    </form>
+    <div class="actions">
+      <span class="left" id="delBox"><button class="btn danger" id="del" type="button">Excluir</button></span>
+      <button class="btn" id="cancel" type="button">Cancelar</button>
+      <button class="btn primary" id="save" type="button">Salvar</button>
+    </div>
+  </aside>
+</div>
+<datalist id="dlEmp"></datalist><datalist id="dlMun"></datalist>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+const STATUS=["Pendente","Pago","Parcelado","Contestado","Vendido","Isento"];
+const DUE=new Date(2026,2,2,23,59);
+const brl=v=>(+v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+const money=v=>"R$ "+brl(v);
+const cell=v=>(+v?brl(v):'<span class="zero">–</span>');
+const num=s=>{if(s==null)return 0;s=String(s).trim();if(!s)return 0;if(s.includes(","))s=s.replace(/\./g,"").replace(",",".");const n=parseFloat(s);return isNaN(n)?0:Math.round(n*100)/100};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const late=()=>new Date()>DUE;
+if(late())$("due").classList.add("late");
+
+let rows=[],sb=null,canWrite=true,sortK="ordem",sortDir=1,editing=null;
+
+function total(r){return num(r.iptu)+num(r.itbi)+num(r.d2025)+num(r.d2024)}
+function saldo(r){if(r.status==="Vendido"||r.status==="Isento")return 0;return Math.max(0,total(r)-num(r.valorPag))}
+function shownStatus(r){if(r.status==="Pendente"&&total(r)>0&&late())return "Atrasado";return r.status||"Pendente"}
+
+// filtros
+const fSt=$("fSt");["Pendente","Atrasado",...STATUS.slice(1)].forEach(s=>fSt.add(new Option(s,s)));
+STATUS.forEach(s=>$("i_st").add(new Option(s,s)));
+function fillSel(sel,vals,first){const cur=sel.value;sel.innerHTML="";sel.add(new Option(first,""));vals.forEach(v=>sel.add(new Option(v,v)));sel.value=vals.includes(cur)?cur:""}
+function fillDl(dl,vals){dl.innerHTML=vals.map(v=>`<option value="${esc(v)}">`).join("")}
+
+function render(){
+  const muns=[...new Set(rows.map(r=>r.mun).filter(Boolean))].sort();
+  const emps=[...new Set(rows.map(r=>r.emp).filter(Boolean))].sort();
+  fillSel($("fMun"),muns,"Todos os municípios");fillSel($("fEmp"),emps,"Todas as empresas");
+  fillDl($("dlMun"),muns);fillDl($("dlEmp"),emps);
+
+  const q=$("q").value.trim().toLowerCase(),fm=$("fMun").value,fe=$("fEmp").value,fs=fSt.value;
+  let list=rows.filter(r=>(!fm||r.mun===fm)&&(!fe||r.emp===fe)&&(!fs||shownStatus(r)===fs)&&
+    (!q||[r.nome,r.seq,r.obs,r.emp,r.mun].join(" ").toLowerCase().includes(q)));
+  const key=r=>sortK==="total"?total(r):sortK==="saldo"?saldo(r):sortK==="st"?shownStatus(r):["iptu","itbi","d2025","d2024","valorPag","ordem"].includes(sortK)?num(r[sortK]):String(r[sortK]||"").toLowerCase();
+  list.sort((a,b)=>{const x=key(a),y=key(b);return (x>y?1:x<y?-1:0)*sortDir});
+
+  $("tb").innerHTML=list.map(r=>{const st=shownStatus(r);return `<tr tabindex="0" data-id="${esc(r.id)}" class="${r.status==="Vendido"?"sold":""}">
+    <td class="nome">${esc(r.nome)}<small>${esc(r.emp)}${r.obs?" · "+esc(r.obs):""}</small></td>
+    <td>${esc(r.mun)}</td><td class="mono">${esc(r.seq)}</td>
+    <td class="num">${cell(r.iptu)}</td><td class="num">${cell(r.itbi)}</td><td class="num">${cell(r.d2025)}</td><td class="num">${cell(r.d2024)}</td>
+    <td class="num"><b>${cell(total(r))}</b></td>
+    <td><span class="pill s-${st}">${st}</span></td>
+    <td class="num">${cell(r.valorPag)}${r.dataPag?`<small style="display:block;color:var(--muted)">${r.dataPag.split("-").reverse().join("/")}</small>`:""}</td>
+    <td class="num">${cell(saldo(r))}</td></tr>`}).join("");
+  const sum=f=>list.reduce((s,r)=>s+f(r),0);
+  $("tf").innerHTML=list.length?`<tr><td>${list.length} imóve${list.length>1?"is":"l"}</td><td></td><td></td>
+    <td class="num">${brl(sum(r=>num(r.iptu)))}</td><td class="num">${brl(sum(r=>num(r.itbi)))}</td><td class="num">${brl(sum(r=>num(r.d2025)))}</td><td class="num">${brl(sum(r=>num(r.d2024)))}</td>
+    <td class="num">${brl(sum(total))}</td><td></td><td class="num">${brl(sum(r=>num(r.valorPag)))}</td><td class="num">${brl(sum(saldo))}</td></tr>`:"";
+  $("empty").hidden=list.length>0;
+  if(!list.length&&rows.length)$("empty").textContent="Nenhum imóvel com esses filtros.";
+
+  const ativos=rows.filter(r=>r.status!=="Vendido"&&r.status!=="Isento");
+  const T=ativos.reduce((s,r)=>s+total(r),0),P=rows.reduce((s,r)=>s+num(r.valorPag),0),S=rows.reduce((s,r)=>s+saldo(r),0);
+  $("kTotal").textContent=money(T);$("kPago").textContent=money(P);$("kSaldo").textContent=money(S);$("kQtd").textContent=rows.length;
+  $("kBar").style.width=(T?Math.min(100,P/T*100):0)+"%";
+  group("byMun","mun");group("byEmp","emp");
+}
+function group(el,k){
+  const m={};rows.forEach(r=>{const g=r[k]||"—";(m[g]=m[g]||{n:0,t:0,p:0,s:0});m[g].n++;if(r.status!=="Vendido"&&r.status!=="Isento")m[g].t+=total(r);m[g].p+=num(r.valorPag);m[g].s+=saldo(r)});
+  $(el).innerHTML=Object.entries(m).sort((a,b)=>b[1].t-a[1].t).map(([g,v])=>`<div class="row"><div>${esc(g)} <small>· ${v.n} imóve${v.n>1?"is":"l"}</small></div>
+    <div class="v">${brl(v.s)} <small>de ${brl(v.t)}</small></div><div class="bar"><i style="width:${v.t?Math.min(100,v.p/v.t*100):0}%"></i></div></div>`).join("")||'<p class="note">Sem dados.</p>';
+}
+
+// ordenação
+document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortDir*=-1;else{sortK=k;sortDir=1}render()});
+["q","fMun","fEmp","fSt"].forEach(id=>$(id).addEventListener("input",render));
+$("tb").addEventListener("click",e=>{const tr=e.target.closest("tr[data-id]");if(tr)openEdit(rows.find(r=>r.id===tr.dataset.id))});
+$("tb").addEventListener("keydown",e=>{if(e.key==="Enter"){const tr=e.target.closest("tr[data-id]");if(tr)openEdit(rows.find(r=>r.id===tr.dataset.id))}});
+
+// painel
+const F=["nome","emp","mun","seq","st","iptu","itbi","d2025","d2024","dataPag","valorPag","obs"];
+const M=["iptu","itbi","d2025","d2024","valorPag"];
+function openEdit(r){
+  editing=r||null;
+  $("dTitle").textContent=r?"Editar imóvel":"Novo imóvel";
+  F.forEach(f=>{const el=$("i_"+f);const v=f==="st"?(r?r.status:"Pendente"):(r?r[f]:"");el.value=M.includes(f)?(num(v)?brl(v):""):(v??"")});
+  $("delBox").innerHTML=r?'<button class="btn danger" id="del" type="button">Excluir</button>':"";
+  if(r)$("del").onclick=askDelete;
+  [...$("frm").elements].forEach(el=>el.disabled=!canWrite);$("save").disabled=!canWrite;
+  calc();$("drawerRoot").hidden=false;$("i_nome").focus();
+}
+function closeEdit(){$("drawerRoot").hidden=true;editing=null}
+function formData(){const o={};F.forEach(f=>{const v=$("i_"+f).value;o[f==="st"?"status":f]=M.includes(f)?num(v):v.trim()});return o}
+function calc(){const d=formData();$("cTot").textContent=money(total(d));$("cSal").textContent=money(saldo(d))}
+$("frm").addEventListener("input",calc);
+$("frm").addEventListener("submit",e=>{e.preventDefault();save()});
+$("payAll").onclick=()=>{const d=formData();$("i_valorPag").value=brl(total(d));$("i_st").value="Pago";if(!$("i_dataPag").value)$("i_dataPag").value=new Date().toISOString().slice(0,10);calc()};
+$("dClose").onclick=$("cancel").onclick=$("scrim").onclick=closeEdit;
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("drawerRoot").hidden)closeEdit()});
+
+function askDelete(){
+  $("delBox").innerHTML='<span class="note">Excluir mesmo? </span><button class="btn danger" id="delYes" type="button">Sim, excluir</button> <button class="btn" id="delNo" type="button">Não</button>';
+  $("delNo").onclick=()=>openEdit(editing);
+  $("delYes").onclick=async()=>{const {error}=await sb.from("imoveis").delete().eq("id",editing.id);if(error){toast("Não foi possível excluir: "+error.message);return}toast("Imóvel excluído");closeEdit();load()};
+}
+async function save(){
+  const d=formData();if(!d.nome){toast("Informe o nome do imóvel");$("i_nome").focus();return}
+  $("save").disabled=true;
+  const row=toDb(d);
+  let res;
+  if(editing)res=await sb.from("imoveis").update(row).eq("id",editing.id);
+  else{row.ordem=rows.reduce((m,r)=>Math.max(m,+r.ordem||0),0)+1;res=await sb.from("imoveis").insert(row)}
+  $("save").disabled=false;
+  if(res.error){toast("Não foi possível salvar: "+res.error.message);return}
+  toast(editing?"Alterações salvas":"Imóvel adicionado");closeEdit();load();
+}
+let tt;function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600)}
+$("add").onclick=()=>openEdit(null);
+
+
+function fromDb(r){return {id:r.id,ordem:r.ordem,nome:r.nome,emp:r.emp,mun:r.mun,seq:r.seq,iptu:+r.iptu,itbi:+r.itbi,d2025:+r.d2025,d2024:+r.d2024,status:r.status,dataPag:r.data_pag||"",valorPag:+r.valor_pag,obs:r.obs||""}}
+function toDb(d){return {nome:d.nome,emp:d.emp,mun:d.mun,seq:d.seq,iptu:d.iptu,itbi:d.itbi,d2025:d.d2025,d2024:d.d2024,status:d.status,data_pag:d.dataPag||null,valor_pag:d.valorPag,obs:d.obs}}
+async function load(){
+  const {data,error}=await sb.from("imoveis").select("*").order("ordem");
+  if(error){$("empty").hidden=false;$("empty").textContent="Erro ao carregar: "+error.message;return}
+  rows=data.map(fromDb);
+  if(!rows.length)$("empty").textContent="Nenhum imóvel cadastrado ainda. Use “+ Novo imóvel” para adicionar o primeiro.";
+  render();
+}
+function show(which){["loginBox","cfgBox","app"].forEach(id=>$(id).hidden=id!==which)}
+async function start(session){
+  if(!session){show("loginBox");return}
+  show("app");$("who").textContent=session.user.email;await load();
+  if(!window._rt){window._rt=sb.channel("imoveis-rt").on("postgres_changes",{event:"*",schema:"public",table:"imoveis"},()=>load()).subscribe()}
+}
+const C=window.IPTU_CONFIG||{};
+if(!C.SUPABASE_URL||C.SUPABASE_URL.includes("COLE_AQUI")||!window.supabase){show("cfgBox")}
+else{
+  sb=window.supabase.createClient(C.SUPABASE_URL,C.SUPABASE_KEY);
+  $("loginForm").addEventListener("submit",async e=>{e.preventDefault();$("lErr").textContent="";$("lBtn").disabled=true;
+    const {error}=await sb.auth.signInWithPassword({email:$("lEmail").value.trim(),password:$("lPass").value});
+    $("lBtn").disabled=false;if(error)$("lErr").textContent=error.message==="Invalid login credentials"?"E-mail ou senha incorretos.":error.message;});
+  $("logout").onclick=async()=>{await sb.auth.signOut()};
+  sb.auth.onAuthStateChange((ev,session)=>{if(ev==="INITIAL_SESSION"||ev==="SIGNED_IN"||ev==="SIGNED_OUT")start(session)});
+}
+})();
+</script>
+</body></html>
