@@ -309,6 +309,7 @@ async function save(){
 }
 let tt;function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,2600)}
 $("add").onclick=()=>openEdit(null);
+$("save").onclick=save;
 
 
 function fromDb(r){return {id:r.id,ordem:r.ordem,nome:r.nome,emp:r.emp,mun:r.mun,seq:r.seq,iptu:+r.iptu,itbi:+r.itbi,d2025:+r.d2025,d2024:+r.d2024,status:r.status,dataPag:r.data_pag||"",valorPag:+r.valor_pag,obs:r.obs||""}}
